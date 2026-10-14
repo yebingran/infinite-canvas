@@ -327,7 +327,9 @@ func pollVideoTaskFromUpstream(ctx context.Context, task model.VideoTask) (servi
 		return update, err
 	}
 	pollID := firstNonEmpty(task.UpstreamTaskID, task.ID)
-	if isAIProtocolVideoID(task.Model, task.UpstreamVideoID) {
+	if service.IsComemoeChannel(channel) {
+		pollID = firstNonEmpty(task.UpstreamVideoID, comemoeVideoIDFromPayload(task.ResponseBody), task.UpstreamTaskID, task.ID)
+	} else if isAIProtocolVideoID(task.Model, task.UpstreamVideoID) {
 		pollID = task.UpstreamVideoID
 	}
 	if strings.TrimSpace(pollID) == "" {

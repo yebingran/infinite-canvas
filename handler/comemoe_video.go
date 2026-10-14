@@ -8,9 +8,60 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/tigerowo/infinite-canvas/service"
 )
+
+func transformComemoeVideoResponse(payload []byte, _ *http.Request, channel model.ModelChannel, _ string, _ bool) ([]byte, bool) {
+	if !service.IsComemoeChannel(channel) {
+		return nil, false
+	}
+	data, ok := comemoeResponseMap(payload)
+	if !ok {
+		return nil, false
+	}
+	videoID := firstNonEmpty(readStringPath(data, "video_id"), readStringPath(data, "id"))
+	if strings.HasPrefix(videoID, "vid_") {
+		data["video_id"] = videoID
+	}
+	transformed, err := json.Marshal(data)
+	return transformed, err == nil
+}
+
+func comemoeVideoIDFromPayload(payload string) string {
+	data, ok := comemoeResponseMap([]byte(payload))
+	if !ok {
+		return ""
+	}
+	videoID := firstNonEmpty(readStringPath(data, "video_id"), readStringPath(data, "id"))
+	if strings.HasPrefix(videoID, "vid_") {
+		return videoID
+	}
+	return ""
+}
+
+func comemoeResponseMap(payload []byte) (map[string]any, bool) {
+	var root map[string]any
+	if len(payload) == 0 || json.Unmarshal(payload, &root) != nil {
+		return nil, false
+	}
+	data := map[string]any{}
+	if nested, ok := root["data"].(map[string]any); ok {
+		for key, value := range nested {
+			data[key] = value
+		}
+	}
+	for key, value := range root {
+		if key != "data" {
+			data[key] = value
+		}
+	}
+	return data, true
+}
 
 func normalizeComemoeVideoBody(body []byte, contentType string, modelName string) ([]byte, error) {
 	payload := map[string]any{}

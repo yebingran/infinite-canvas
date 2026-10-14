@@ -672,6 +672,8 @@ export default function VideoPage() {
         try {
             await Promise.all(pendingLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
             if (!active()) return;
+            await Promise.all(pendingLogs.map((log) => persistVideoLog(log)));
+            if (!active()) return;
             setLogs((value) => sortVideoLogs([...pendingLogs, ...value]));
             setResults((value) => sortVideoResults([...pendingLogs.map((log) => createResultFromLog(log, "pending")), ...value]));
             const settled = await Promise.allSettled(pendingLogs.map((log) => {
@@ -747,6 +749,8 @@ export default function VideoPage() {
             if (!active()) throw signal.reason || new Error("登录状态已变化");
             const nextLog = { ...pendingLog, taskBackend: run.backend, task: created.task, lastPolledAt: Date.now() };
             await saveGenerationLog(nextLog, active);
+            if (!active()) throw signal.reason || new Error("登录状态已变化");
+            await persistVideoLog(nextLog);
             if (!active()) throw signal.reason || new Error("登录状态已变化");
             setResults((value) => updateResultByLogId(value, pendingLog.id, { progress: created.task.progress, task: created.task, taskLogId: nextLog.id, lastPolledAt: nextLog.lastPolledAt }));
             return nextLog;

@@ -391,6 +391,7 @@ var builtinAIProtocols = []aiProtocolAdapter{
 	},
 	{
 		id: service.ModelChannelProtocolComemoe,
+		videoResponse: transformComemoeVideoResponse,
 		prepare: func(input aiProtocolRequest) (aiProtocolRequest, bool, error) {
 			if input.mode != aiProtocolVideoRequest || !service.IsComemoeChannel(input.channel) {
 				return input, false, nil
