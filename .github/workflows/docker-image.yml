@@ -2,6 +2,7 @@ name: Docker image
 
 on:
   push:
+    branches: ["comemoe-video-adapter"]
     tags: ["v*"]
   workflow_dispatch:
 
