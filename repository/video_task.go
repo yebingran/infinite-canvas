@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -100,7 +102,10 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoT
 		}
 	}
 	err = query.
-		Where("status IN ?", []string{"queued", "in_progress", "processing", "running"}).
+		Where("status IN ? OR (status IN ? AND completed_at >= ?)",
+			[]string{"queued", "in_progress", "processing", "running"},
+			[]string{"completed", "failed", "cancelled", "canceled"},
+			time.Now().UTC().Add(-10*time.Minute).Format(time.RFC3339Nano)).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&tasks).Error
