@@ -113,7 +113,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		log.Printf("AI video normalize request failed: model=%s err=%v", modelName, err)
-		if service.IsAutoDLChannel(channel) {
+		if service.IsAutoDLChannel(channel) || service.IsComemoeChannel(channel) {
 			Fail(w, err.Error())
 			return
 		}

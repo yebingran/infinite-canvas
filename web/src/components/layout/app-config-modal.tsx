@@ -17,7 +17,7 @@ import { grokTtsFormatOptions, grokTtsLanguageOptions, isGrok2APITtsConfig, norm
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiTtsVoiceOptions, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, mimoTtsFormatOptions, mimoTtsVoiceOptions } from "@/lib/mimo-tts";
-import { isWorkflowProtocol, modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions } from "@/lib/model-channel";
+import { isWorkflowProtocol, localModelChannelProtocolOptions, modelChannelApiKeyUrls, modelChannelDefaultBaseUrls } from "@/lib/model-channel";
 import { startTokenDanceOAuth } from "@/lib/tokendance-oauth";
 import type { WorkflowChannelData, WorkflowEntry } from "@/lib/workflow-channel";
 import { listWorkflowChannels, readWorkflowChannel, replaceWorkflowChannels, saveWorkflowChannel } from "@/services/workflow-channel-storage";
@@ -471,7 +471,7 @@ export function AppConfigModal() {
                                             <Input value={channel.name} placeholder="渠道名称" onChange={(event) => patchLocalChannel(channel.id, { name: event.target.value })} />
                                             <Select
                                                 value={channel.protocol}
-                                                options={modelChannelProtocolOptions}
+                                                options={localModelChannelProtocolOptions}
                                                 onChange={(protocol: LocalModelChannel["protocol"]) => patchLocalChannel(channel.id, { protocol, baseUrl: modelChannelDefaultBaseUrls[protocol] })}
                                             />
                                             {isWorkflowProtocol(channel.protocol) ? <div className="flex h-8 items-center justify-center rounded-md border border-dashed border-[var(--ant-color-border)] px-3 text-xs text-[var(--ant-color-text-secondary)] md:col-span-2">连接信息和工作流在「选择」里配置</div> : <><Input value={channel.baseUrl} placeholder="Base URL" onChange={(event) => patchLocalChannel(channel.id, { baseUrl: event.target.value })} /><Input.Password value={channel.apiKey} placeholder="API Key" onChange={(event) => patchLocalChannel(channel.id, { apiKey: event.target.value })} /></>}
