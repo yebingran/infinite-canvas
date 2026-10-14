@@ -5,6 +5,7 @@ import { directAIProviderForProtocol, modelChannelApiKeyUrls, modelChannelDefaul
 test("built-in protocol options retain both settings panels' labels and order", () => {
     assert.deepEqual(modelChannelProtocolOptions, [
         { label: "OpenAI", value: "openai" },
+        { label: "New API（OpenAI 兼容）", value: "newapi" },
         { label: "Gemini", value: "gemini" },
         { label: "Grok2API", value: "grok2api" },
         { label: "MiniMax & METASO", value: "minimax" },
@@ -22,6 +23,7 @@ test("built-in protocol options retain both settings panels' labels and order", 
 test("built-in protocols retain all existing default URLs and API Key links", () => {
     assert.deepEqual(modelChannelDefaultBaseUrls, {
         openai: "https://api.openai.com",
+        newapi: "https://ai.yunsuguan.com/v1",
         gemini: "https://generativelanguage.googleapis.com",
         grok2api: "",
         minimax: "https://metaso.cn/api/minimax",

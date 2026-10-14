@@ -84,6 +84,9 @@ func AdminTestChannelModel(index *int, channel model.ModelChannel, modelName str
 	if err != nil {
 		return "", err
 	}
+	if IsComemoeChannel(resolved) {
+		return testComemoeChannelModel(resolved, modelName)
+	}
 	translation, err := NewParameterTranslation(resolved, modelName, map[string]any{"prompt": "test", "count": 1})
 	if err != nil {
 		return "", err
@@ -768,6 +771,19 @@ func testOpenAIChannelModel(channel model.ModelChannel, modelName string) (strin
 		return payload.Choices[0].Message.Content, nil
 	}
 	return "ok", nil
+}
+
+func testComemoeChannelModel(channel model.ModelChannel, modelName string) (string, error) {
+	models, err := fetchOpenAIAdminChannelModels(channel)
+	if err != nil {
+		return "", err
+	}
+	for _, name := range models {
+		if name == modelName {
+			return "算力萌连接成功，模型存在；此测试只读取模型列表，不会提交生成任务或扣费。", nil
+		}
+	}
+	return "", safeMessageError{message: "算力萌连接成功，但模型列表中未找到该模型；请确认模型 ID 已启用。"}
 }
 
 func fetchGeminiAdminChannelModels(channel model.ModelChannel) ([]string, error) {

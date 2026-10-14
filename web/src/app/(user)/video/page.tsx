@@ -672,6 +672,8 @@ export default function VideoPage() {
         try {
             await Promise.all(pendingLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
             if (!active()) return;
+            await Promise.all(pendingLogs.map((log) => persistVideoLog(log)));
+            if (!active()) return;
             setLogs((value) => sortVideoLogs([...pendingLogs, ...value]));
             setResults((value) => sortVideoResults([...pendingLogs.map((log) => createResultFromLog(log, "pending")), ...value]));
             const settled = await Promise.allSettled(pendingLogs.map((log) => {
@@ -747,6 +749,8 @@ export default function VideoPage() {
             if (!active()) throw signal.reason || new Error("登录状态已变化");
             const nextLog = { ...pendingLog, taskBackend: run.backend, task: created.task, lastPolledAt: Date.now() };
             await saveGenerationLog(nextLog, active);
+            if (!active()) throw signal.reason || new Error("登录状态已变化");
+            await persistVideoLog(nextLog);
             if (!active()) throw signal.reason || new Error("登录状态已变化");
             setResults((value) => updateResultByLogId(value, pendingLog.id, { progress: created.task.progress, task: created.task, taskLogId: nextLog.id, lastPolledAt: nextLog.lastPolledAt }));
             return nextLog;
@@ -1063,15 +1067,15 @@ export default function VideoPage() {
         if (!token || !usesBackendVideoTasks(config)) return baseLogs || logsRef.current;
         try {
             const tasks = await listVideoGenerationTasks(config);
-            const recoverableTasks = tasks.filter(isRecoverableBackendVideoTask);
-            if (!recoverableTasks.length) return baseLogs || logsRef.current;
+            if (!tasks.length) return baseLogs || logsRef.current;
             const currentLogs = baseLogs || (await readStoredLogs());
-            const mergedLogs = mergeBackendVideoTasks(currentLogs, recoverableTasks, config);
-            const taskKeys = new Set(recoverableTasks.flatMap(videoTaskIdentityKeys));
+            const mergedLogs = mergeBackendVideoTasks(currentLogs, tasks, config);
+            const taskKeys = new Set(tasks.flatMap(videoTaskIdentityKeys));
             const recoveredLogs = mergedLogs.filter((log) => videoLogIdentityKeys(log).some((key) => taskKeys.has(key)));
             await persistStoredVideoLogs(recoveredLogs);
+            await Promise.all(recoveredLogs.map((log) => persistVideoLog(log)));
             setLogs((value) => dedupeVideoLogs([...mergedLogs, ...value.filter((log) => log.status === "停止中" || log.status === "已停止")]));
-            setResults((value) => mergePendingLogResults(value, mergedLogs.filter((log) => log.status === "生成中" && log.task && !log.video)));
+            setResults((value) => mergePendingLogResults(value, recoveredLogs));
             return mergedLogs;
         } catch {
             return baseLogs || logsRef.current;
@@ -2671,12 +2675,17 @@ function mergePendingLogResults(results: GenerationResult[], logs: GenerationLog
     const updatedResults = results.map((result) => {
         const log = findMatchingPendingLogForResult(result, logs);
         if (!log || result.status === "stopped" || result.status === "stopping" && log.status !== "停止中") return result;
-        return { ...result, status: log.status === "停止中" ? "stopping" as const : result.status, taskLogId: log.id, task: log.task, progress: log.task?.progress ?? result.progress, durationMs: log.durationMs || result.durationMs, lastPolledAt: log.lastPolledAt || result.lastPolledAt };
+        if (result.status === "success" && log.status !== "成功") return result;
+        const status: GenerationResult["status"] = log.status === "成功" ? "success" : log.status === "失败" ? "failed" : log.status === "停止中" ? "stopping" : log.status === "已停止" ? "stopped" : "pending";
+        return { ...result, status, taskLogId: log.id, task: log.task, progress: log.task?.progress ?? result.progress, durationMs: log.durationMs || result.durationMs, lastPolledAt: log.lastPolledAt || result.lastPolledAt, video: log.video || result.video, error: log.error, errorDetail: log.errorDetail };
     });
     const existingLogIds = new Set(updatedResults.flatMap((item) => [item.taskLogId, item.id]).filter((id): id is string => Boolean(id)));
     const existingTaskKeys = new Set(updatedResults.flatMap(videoResultIdentityKeys));
-    const pendingResults = logs.filter((log) => !existingLogIds.has(log.id) && !videoLogIdentityKeys(log).some((key) => existingTaskKeys.has(key))).map((log) => createResultFromLog(log, log.status === "停止中" ? "stopping" : "pending"));
-    return pendingResults.length ? sortVideoResults([...pendingResults, ...updatedResults]) : sortVideoResults(updatedResults);
+    const recoveredResults = logs.filter((log) => !existingLogIds.has(log.id) && !videoLogIdentityKeys(log).some((key) => existingTaskKeys.has(key))).map((log) => {
+        const status: GenerationResult["status"] = log.status === "成功" ? "success" : log.status === "失败" ? "failed" : log.status === "停止中" ? "stopping" : log.status === "已停止" ? "stopped" : "pending";
+        return createResultFromLog(log, status);
+    });
+    return recoveredResults.length ? sortVideoResults([...recoveredResults, ...updatedResults]) : sortVideoResults(updatedResults);
 }
 
 function findMatchingPendingLogForResult(result: GenerationResult, logs: GenerationLog[]) {
@@ -2724,10 +2733,6 @@ function isTransientVideoPollError(error: unknown) {
     if (!axios.isAxiosError(error)) return false;
     const status = error.response?.status;
     return !error.response || status === 408 || status === 429 || Boolean(status && status >= 500);
-}
-
-function isRecoverableBackendVideoTask(task: VideoResponse) {
-    return !isCompletedVideoTask(task) && !isFailedVideoTask(task);
 }
 
 function isCloudVideo(video: GeneratedVideo) {

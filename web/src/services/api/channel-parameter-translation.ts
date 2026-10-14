@@ -74,7 +74,7 @@ export function translationMediaURLs(value: unknown, kind: TranslationInput["kin
     if (typeof value !== "object") return [];
     const object = value as Record<string, unknown>;
     const mime = typeof object.mime_type === "string" ? object.mime_type : typeof object.mimeType === "string" ? object.mimeType : mimeType;
-    return ["url", "uri", "download_url", "image_url", "video_url", "audio_url", "images", "videos", "audios", "data", "outputs", "results", "result", "b64_json", "base64"].flatMap((key) => translationMediaURLs(object[key], kind, mime, depth + 1));
+    return ["url", "uri", "fileUri", "file_uri", "download_url", "image_url", "imageUrl", "video_url", "audio_url", "images", "videos", "audios", "data", "outputs", "results", "result", "b64_json", "base64", "choices", "message", "content", "parts", "inlineData", "inline_data", "fileData", "file_data"].flatMap((key) => translationMediaURLs(object[key], kind, mime, depth + 1));
 }
 
 export class BrowserParameterTranslation {

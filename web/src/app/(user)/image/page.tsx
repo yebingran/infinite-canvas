@@ -864,11 +864,10 @@ export default function ImagePage() {
         if (!token) return baseLogs || logsRef.current;
         try {
             const tasks = await listCanvasImageTasks(currentConfig, ["image-workbench", "workflow"]);
-            const recoverableTasks = tasks.filter(isRecoverableImageTask);
-            if (!recoverableTasks.length) return baseLogs || logsRef.current;
+            if (!tasks.length) return baseLogs || logsRef.current;
             const currentLogs = baseLogs || (await readStoredLogs());
-            const mergedLogs = mergeBackendImageTasks(currentLogs, recoverableTasks, currentConfig);
-            const taskIds = new Set(recoverableTasks.flatMap(imageTaskIdentityKeys));
+            const mergedLogs = mergeBackendImageTasks(currentLogs, tasks, currentConfig);
+            const taskIds = new Set(tasks.flatMap(imageTaskIdentityKeys));
             const recoveredLogs = mergedLogs.filter((log) => imageLogIdentityKeys(log).some((key) => taskIds.has(key)));
             await Promise.all(recoveredLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
             setLogs(mergedLogs);
@@ -2486,10 +2485,6 @@ function createResultFromImageLog(log: GenerationLog, status: GenerationResult["
 
 function imageLogTaskId(log: GenerationLog) {
     return log.task?.id || "";
-}
-
-function isRecoverableImageTask(task: CanvasImageTask) {
-    return !isCompletedImageTask(task) && !isFailedImageTask(task);
 }
 
 function isCompletedImageTask(task: CanvasImageTask) {

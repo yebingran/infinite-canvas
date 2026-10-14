@@ -390,6 +390,19 @@ var builtinAIProtocols = []aiProtocolAdapter{
 		},
 	},
 	{
+		id: service.ModelChannelProtocolComemoe,
+		videoResponse: transformComemoeVideoResponse,
+		prepare: func(input aiProtocolRequest) (aiProtocolRequest, bool, error) {
+			if input.mode != aiProtocolVideoRequest || !service.IsComemoeChannel(input.channel) {
+				return input, false, nil
+			}
+			input.failureLabel = "算力萌视频"
+			body, err := normalizeComemoeVideoBody(input.body, input.contentType, input.modelName)
+			input.body, input.contentType = body, "application/json"
+			return input, true, err
+		},
+	},
+	{
 		id:   service.ModelChannelProtocolOpenAI,
 		path: func(_ model.ModelChannel, _ string, path string) (string, bool) { return path, true },
 	},

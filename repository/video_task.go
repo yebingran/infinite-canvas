@@ -1,10 +1,14 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/tigerowo/infinite-canvas/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const VideoTaskHistoryRetention = 7 * 24 * time.Hour
 
 func SaveFailedTranslatedVideoTask(task model.VideoTask, refundLog model.CreditLog) error {
 	db, err := DB()
@@ -100,7 +104,10 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoT
 		}
 	}
 	err = query.
-		Where("status IN ?", []string{"queued", "in_progress", "processing", "running"}).
+		Where("status IN ? OR (status IN ? AND completed_at >= ?)",
+			[]string{"queued", "in_progress", "processing", "running"},
+			[]string{"completed", "failed", "cancelled", "canceled"},
+			time.Now().UTC().Add(-VideoTaskHistoryRetention).Format(time.RFC3339Nano)).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&tasks).Error

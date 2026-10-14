@@ -1,5 +1,5 @@
 import axios from "axios";
-import { executeParameterTranslation, findParameterTranslation, normalizeTranslationAspectRatio, translationBody, translationHeaders, type TranslationInput } from "./channel-parameter-translation";
+import { executeParameterTranslation, findParameterTranslation, normalizeTranslationAspectRatio, translationBody, translationHeaders, translationMediaURLs, type TranslationInput } from "./channel-parameter-translation";
 
 import { isMiniMaxChannel, miniMaxModels } from "@/lib/minimax-video";
 import { dataUrlToFile } from "@/lib/image-utils";
@@ -35,7 +35,7 @@ type ResponsesApiResponse = {
 };
 
 type ChatImagesApiResponse = {
-    choices?: Array<{ message?: { images?: Array<{ image_url?: { url?: string } }> } }>;
+    choices?: Array<{ message?: { images?: Array<{ image_url?: { url?: string }; url?: string; b64_json?: string }>; content?: string | Array<Record<string, unknown>> } }>;
     error?: { message?: string };
     code?: number;
     msg?: string;
@@ -261,11 +261,10 @@ function parseImagePayload(payload: ImageApiResponse, mime: string): GeneratedIm
     if (typeof payload.code === "number" && payload.code !== 0) {
         throw new ImageRequestError(payload.msg || "请求失败", payload);
     }
-    const images =
-        payload.data
-            ?.map((item) => resolveImageDataUrl(item, mime))
-            .filter((value): value is string => Boolean(value))
-            .map((dataUrl) => ({ id: nanoid(), dataUrl })) || [];
+    const images = Array.from(new Set([
+        ...(payload.data || []).map((item) => resolveImageDataUrl(item, mime)).filter((value): value is string => Boolean(value)),
+        ...translationMediaURLs(payload, "image", mime),
+    ])).map((dataUrl) => ({ id: nanoid(), dataUrl }));
 
     if (images.length === 0) {
         throw new ImageRequestError("接口没有返回图片", payload);
@@ -277,11 +276,19 @@ function parseImagePayload(payload: ImageApiResponse, mime: string): GeneratedIm
 function parseChatImagesPayload(payload: ChatImagesApiResponse): GeneratedImage[] {
     if (typeof payload.code === "number" && payload.code !== 0) throw new ImageRequestError(payload.msg || "请求失败", payload);
     if (payload.error?.message) throw new ImageRequestError(payload.error.message, payload);
-    const images = payload.choices
-        ?.flatMap((choice) => choice.message?.images || [])
-        .map((item) => item.image_url?.url || "")
-        .filter(Boolean)
-        .map((dataUrl) => ({ id: nanoid(), dataUrl })) || [];
+    const imageValues = payload.choices?.flatMap((choice) => {
+        const message = choice.message;
+        if (!message) return [];
+        const structured = [
+            ...translationMediaURLs(message.images || [], "image", IMAGE_MIME),
+            ...(Array.isArray(message.content) ? translationMediaURLs(message.content, "image", IMAGE_MIME) : []),
+        ];
+        const text = typeof message.content === "string" ? message.content : "";
+        const markdownImages = Array.from(text.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/gi), (match) => match[1]);
+        const dataImages = text.match(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi) || [];
+        return [...structured, ...markdownImages, ...dataImages];
+    }) || [];
+    const images = Array.from(new Set(imageValues)).map((dataUrl) => ({ id: nanoid(), dataUrl }));
     if (!images.length) throw new ImageRequestError("Chat Completions 没有返回图片", payload);
     return images;
 }
@@ -1365,11 +1372,15 @@ function parseGeminiImages(payload: Record<string, unknown>) {
         const content = candidate.content && typeof candidate.content === "object" ? candidate.content as Record<string, unknown> : {};
         const parts = Array.isArray(content.parts) ? content.parts as Array<Record<string, unknown>> : [];
         return parts.flatMap((part) => {
-            const inlineData = part.inlineData && typeof part.inlineData === "object" ? part.inlineData as Record<string, unknown> : {};
+            const rawInlineData = part.inlineData ?? part.inline_data;
+            const inlineData = rawInlineData && typeof rawInlineData === "object" ? rawInlineData as Record<string, unknown> : {};
             const data = typeof inlineData.data === "string" ? inlineData.data : "";
-            if (!data) return [];
-            const mimeType = typeof inlineData.mimeType === "string" ? inlineData.mimeType : IMAGE_MIME;
-            return [{ id: nanoid(), dataUrl: `data:${mimeType};base64,${data}` }];
+            const mimeType = typeof inlineData.mimeType === "string" ? inlineData.mimeType : typeof inlineData.mime_type === "string" ? inlineData.mime_type : IMAGE_MIME;
+            if (data) return [{ id: nanoid(), dataUrl: `data:${mimeType};base64,${data}` }];
+            const rawFileData = part.fileData ?? part.file_data;
+            const fileData = rawFileData && typeof rawFileData === "object" ? rawFileData as Record<string, unknown> : {};
+            const fileUri = typeof fileData.fileUri === "string" ? fileData.fileUri : typeof fileData.file_uri === "string" ? fileData.file_uri : "";
+            return /^https?:\/\//i.test(fileUri) ? [{ id: nanoid(), dataUrl: fileUri }] : [];
         });
     });
     if (!images.length) throw new ImageRequestError(geminiErrorMessage(payload, "Gemini 接口没有返回图片"), payload);

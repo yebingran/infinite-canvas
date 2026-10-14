@@ -17,6 +17,11 @@ type canvasTaskRun struct {
 	cancel context.CancelFunc
 }
 
+func CanvasTaskIsRunning(kind string, userID string, id string) bool {
+	_, ok := canvasTaskRuns.Load(strings.TrimSpace(kind) + ":" + strings.TrimSpace(userID) + ":" + strings.TrimSpace(id))
+	return ok
+}
+
 func canvasTaskModel(kind string) (any, error) {
 	switch kind {
 	case "image":

@@ -108,7 +108,7 @@ description: settings 表中 public 和 private 配置结构说明
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `protocol` | string | 协议，支持 OpenAI、Gemini、Grok2API、MiniMax、APIMart、KIE、MiMo |
+| `protocol` | string | 协议，支持 OpenAI、New API（OpenAI 兼容）、算力萌视频、Gemini、Grok2API、MiniMax、APIMart、KIE、MiMo |
 | `name` | string | 渠道名称 |
 | `baseUrl` | string | 渠道接口地址 |
 | `apiKey` | string | 渠道密钥 |
@@ -119,6 +119,8 @@ description: settings 表中 public 和 private 配置结构说明
 | `remark` | string | 备注 |
 
 后端调用模型时，会从已启用、已配置 `baseUrl` 和 `apiKey`、且 `models` 包含目标模型的渠道中选择一个。
+
+`newapi` 使用 OpenAI 兼容路径和 Bearer Key；默认 Base URL 为 `https://ai.yunsuguan.com/v1`，支持 `/models`、`/chat/completions`、`/images/generations`、`/images/edits` 等标准入口。Gemini 原生图片生成仍通过 `gemini` 协议的 `generateContent` 路径调用，需确认上游 Base URL 提供该协议。
 
 公开渠道信息增加 `parameterTranslationModels: string[]`，只列出已配置生成请求且允许使用的模型名，供前端选择调用入口；不公开转译原文和密钥。个人渠道原文随用户 `modelConfig.channelTranslations` 保存，每项为 `{ channelId, parameterTranslation }`，与外部 `localChannels` 的 URL、密钥和模型配置分开。
 
