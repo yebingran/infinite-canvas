@@ -285,7 +285,7 @@ func runVideoTaskPoller() {
 				break
 			}
 			if (len(tasks) > 0 || len(workflowTasks) > 0) && (lastCleanupAt.IsZero() || current.Sub(lastCleanupAt) >= videoTaskCleanupInterval) {
-				if err := repository.DeleteFinishedVideoTasksBefore(videoTaskTime(current.Add(-videoTaskFinishedRetention))); err != nil {
+				if err := repository.DeleteFinishedVideoTasksBefore(videoTaskTime(current.Add(-repository.VideoTaskHistoryRetention))); err != nil {
 					log.Printf("cleanup finished video tasks failed err=%v", err)
 				}
 				lastCleanupAt = current

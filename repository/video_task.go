@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const VideoTaskHistoryRetention = 7 * 24 * time.Hour
+
 func SaveFailedTranslatedVideoTask(task model.VideoTask, refundLog model.CreditLog) error {
 	db, err := DB()
 	if err != nil {
@@ -105,7 +107,7 @@ func ListUserVideoTasks(userID string, source string, limit int) ([]model.VideoT
 		Where("status IN ? OR (status IN ? AND completed_at >= ?)",
 			[]string{"queued", "in_progress", "processing", "running"},
 			[]string{"completed", "failed", "cancelled", "canceled"},
-			time.Now().UTC().Add(-10*time.Minute).Format(time.RFC3339Nano)).
+			time.Now().UTC().Add(-VideoTaskHistoryRetention).Format(time.RFC3339Nano)).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&tasks).Error
