@@ -2,7 +2,7 @@ name: Docker image
 
 on:
   push:
-    branches: ["main", "codex/newapi-image-support"]
+    branches: ["main", "codex/newapi-image-support", "codex/announcement-settings"]
     tags: ["v*"]
   workflow_dispatch:
 

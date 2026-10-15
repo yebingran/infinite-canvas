@@ -134,8 +134,20 @@ type PublicModelChannelInfo struct {
 // PublicSetting 公开配置。
 type PublicSetting struct {
 	ModelChannel PublicModelChannelSetting `json:"modelChannel"`
+	Announcement AnnouncementSetting       `json:"announcement"`
 	Auth         PublicAuthSetting         `json:"auth"`
 	Storage      PublicStorageSetting      `json:"storage"`
+}
+
+type AnnouncementSetting struct {
+	Enabled *bool              `json:"enabled"`
+	Items   []AnnouncementItem `json:"items"`
+}
+
+type AnnouncementItem struct {
+	Text     string `json:"text"`
+	LinkText string `json:"linkText,omitempty"`
+	LinkURL  string `json:"linkUrl,omitempty"`
 }
 
 type PublicStorageSetting struct {

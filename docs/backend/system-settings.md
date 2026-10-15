@@ -28,6 +28,12 @@ description: settings 表中 public 和 private 配置结构说明
     "systemPrompt": "",
     "allowCustomChannel": true
   },
+  "announcement": {
+    "enabled": true,
+    "items": [
+      { "text": "站点公告", "linkText": "查看详情", "linkUrl": "https://example.com" }
+    ]
+  },
   "auth": {
     "allowRegister": true,
     "linuxDo": {
@@ -40,7 +46,10 @@ description: settings 表中 public 和 private 配置结构说明
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `modelChannel` | object | 模型渠道公开配置组 |
+| `announcement` | object | 前台顶部滚动公告配置 |
 | `auth` | object | 认证相关公开配置 |
+
+`announcement.enabled` 控制公告栏显示；`announcement.items` 按数组顺序轮播，清空数组也会隐藏公告栏。每条公告的 `text` 是纯文本，`linkUrl` 和 `linkText` 可选；链接仅接受 HTTP 或 HTTPS。旧配置首次读取时沿用原有三条公告，管理员保存后可编辑、删除或停用。
 
 `modelChannel` 字段：
 

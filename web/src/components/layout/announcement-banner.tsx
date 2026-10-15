@@ -3,29 +3,45 @@
 import { useEffect, useRef, useState } from "react";
 import { Carousel, type GetRef } from "antd";
 import { Megaphone, X } from "lucide-react";
+import { useConfigStore } from "@/stores/use-config-store";
 
-const ANNOUNCEMENTS = [
-    <><Megaphone />TokenDance X 百亿 Token 补贴，一键登录即可接入，SD 2 Mini 低至 0.09元/秒 <a href="https://tokendance.space/" target="_blank" rel="noopener" className="underline!">查看详情</a></>,
-    <><Megaphone />无限画布现已支持 RunningHub X ComfyUI 工作流</>,
-    <><Megaphone />微信交流群现已开放 <a href="https://qr.tdeh.uk/ai" target="_blank" rel="noopener" className="underline!">扫码加入</a></>,
-];
 const DISMISSED_KEY = "infinite-canvas:announcement-dismissed";
 
+function safeLinkURL(value: string | undefined) {
+    if (!value) return "";
+    try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:" ? url.href : "";
+    } catch {
+        return "";
+    }
+}
+
 export function AnnouncementBanner() {
+    const announcement = useConfigStore((state) => state.publicSettings?.announcement);
+    const enabled = announcement?.enabled === true;
+    const items = (announcement?.items || []).filter((item) => item.text?.trim());
+    const signature = JSON.stringify(items);
     const [visible, setVisible] = useState(false);
     const [slide, setSlide] = useState({ index: 0, direction: "right" });
     const [paused, setPaused] = useState(false);
     const carouselRef = useRef<GetRef<typeof Carousel>>(null);
 
     useEffect(() => {
+        if (!enabled || !items.length) {
+            setVisible(false);
+            return;
+        }
         try {
-            setVisible(localStorage.getItem(DISMISSED_KEY) !== "1");
+            setVisible(localStorage.getItem(DISMISSED_KEY) !== signature);
         } catch {
             setVisible(true);
         }
-    }, []);
+        setSlide({ index: 0, direction: "right" });
+        carouselRef.current?.goTo(0);
+    }, [enabled, signature]);
 
-    if (!visible || !ANNOUNCEMENTS.length) return null;
+    if (!visible || !enabled || !items.length) return null;
 
     return (
         <section
@@ -38,7 +54,7 @@ export function AnnouncementBanner() {
         >
             <Carousel
                 ref={carouselRef}
-                autoplay={ANNOUNCEMENTS.length > 1 && !paused}
+                autoplay={items.length > 1 && !paused}
                 autoplaySpeed={5000}
                 effect="fade"
                 speed={0}
@@ -47,17 +63,19 @@ export function AnnouncementBanner() {
                 dots={false}
                 rootClassName="isolate"
             >
-                {ANNOUNCEMENTS.map((content, index) => (
+                {items.map((item, index) => (
                     <div key={index}>
                         <div className={`flex min-h-12 items-center justify-center gap-2 px-12 py-2 text-center text-sm duration-300 in-[.slick-active]:animate-in in-[.slick-active]:fade-in sm:text-base ${slide.direction === "left" ? "in-[.slick-active]:slide-in-from-left-2" : "in-[.slick-active]:slide-in-from-right-2"}`}>
-                            <span className="min-w-0 break-words font-medium leading-[1.6] [&_a]:whitespace-nowrap [&_svg]:mr-2 [&_svg]:inline-block [&_svg]:size-[18px] [&_svg]:align-middle [&_svg]:-translate-y-[2.5px]">{content}</span>
+                            <span className="min-w-0 break-words font-medium leading-[1.6] [&_a]:whitespace-nowrap [&_svg]:mr-2 [&_svg]:inline-block [&_svg]:size-[18px] [&_svg]:align-middle [&_svg]:-translate-y-[2.5px]">
+                                <Megaphone />{item.text}{safeLinkURL(item.linkUrl) && <> <a href={safeLinkURL(item.linkUrl)} target="_blank" rel="noopener noreferrer" className="underline!">{item.linkText || "查看详情"}</a></>}
+                            </span>
                         </div>
                     </div>
                 ))}
             </Carousel>
-            {ANNOUNCEMENTS.length > 1 && (
+            {items.length > 1 && (
                 <div aria-label="选择公告" className="group/indicators absolute bottom-px left-1/2 flex max-w-40 -translate-x-1/2">
-                    {ANNOUNCEMENTS.map((_, index) => (
+                    {items.map((_, index) => (
                         <button
                             key={index}
                             type="button"
@@ -82,7 +100,7 @@ export function AnnouncementBanner() {
                 onClick={() => {
                     setVisible(false);
                     try {
-                        localStorage.setItem(DISMISSED_KEY, "1");
+                        localStorage.setItem(DISMISSED_KEY, signature);
                     } catch {}
                 }}
             >

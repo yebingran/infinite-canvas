@@ -170,6 +170,7 @@ func DefaultSystemPrompts() model.SystemPromptSetting {
 }
 
 func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []model.ModelChannel) model.PublicSetting {
+	setting.Announcement = normalizeAnnouncementSetting(setting.Announcement)
 	if setting.ModelChannel.AvailableModels == nil {
 		setting.ModelChannel.AvailableModels = []string{}
 	}
@@ -233,6 +234,39 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 	setting.ModelChannel.DefaultImageModel = repairDefaultModel(setting.ModelChannel.DefaultImageModel, setting.ModelChannel.AvailableModels, isImageModelName)
 	setting.ModelChannel.DefaultVideoModel = repairDefaultModel(setting.ModelChannel.DefaultVideoModel, setting.ModelChannel.AvailableModels, isVideoModelName)
 	setting.ModelChannel.DefaultModel = repairDefaultModel(setting.ModelChannel.DefaultModel, setting.ModelChannel.AvailableModels, isTextModelName)
+	return setting
+}
+
+func normalizeAnnouncementSetting(setting model.AnnouncementSetting) model.AnnouncementSetting {
+	if setting.Enabled == nil {
+		enabled := true
+		setting.Enabled = &enabled
+	}
+	if setting.Items == nil {
+		setting.Items = []model.AnnouncementItem{
+			{Text: "TokenDance X 百亿 Token 补贴，一键登录即可接入，SD 2 Mini 低至 0.09元/秒", LinkText: "查看详情", LinkURL: "https://tokendance.space/"},
+			{Text: "无限画布现已支持 RunningHub X ComfyUI 工作流"},
+			{Text: "微信交流群现已开放", LinkText: "扫码加入", LinkURL: "https://qr.tdeh.uk/ai"},
+		}
+	}
+	items := make([]model.AnnouncementItem, 0, len(setting.Items))
+	for _, item := range setting.Items {
+		item.Text = strings.TrimSpace(item.Text)
+		if item.Text == "" {
+			continue
+		}
+		item.LinkText = strings.TrimSpace(item.LinkText)
+		item.LinkURL = strings.TrimSpace(item.LinkURL)
+		parsed, err := url.Parse(item.LinkURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			item.LinkURL = ""
+			item.LinkText = ""
+		} else if item.LinkText == "" {
+			item.LinkText = "查看详情"
+		}
+		items = append(items, item)
+	}
+	setting.Items = items
 	return setting
 }
 

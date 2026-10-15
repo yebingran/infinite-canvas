@@ -244,6 +244,10 @@ export type AdminPublicModelChannelInfo = {
 
 export type AdminPublicSettings = {
     modelChannel: AdminPublicModelChannelSettings;
+    announcement: {
+        enabled: boolean;
+        items: Array<{ text: string; linkText?: string; linkUrl?: string }>;
+    };
     auth: {
         allowRegister: boolean;
         linuxDo: {
