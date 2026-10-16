@@ -135,31 +135,36 @@ func normalizeComemoeVideoBody(body []byte, contentType string, modelName string
 	}
 
 	images := []string{}
-	for _, key := range []string{"image_url", "image_urls", "input_reference[]", "images", "image"} {
-		if images = comemoeImageValues(payload[key]); len(images) > 0 {
-			break
+	if positioned, ok := payload["images"].([]any); ok && len(positioned) > 0 {
+		result["images"] = positioned
+		images = comemoeImageValues(positioned)
+	} else {
+		for _, key := range []string{"image_urls", "image_url", "input_reference[]", "image"} {
+			if images = comemoeImageValues(payload[key]); len(images) > 0 {
+				break
+			}
+		}
+		if len(images) == 1 {
+			result["image_url"] = images[0]
+		} else if len(images) > 1 {
+			result["image_urls"] = images
 		}
 	}
 	firstFrame := firstNonEmpty(toStringSafe(payload["first_frame_url"]), toStringSafe(payload["first_frame"]))
 	lastFrame := firstNonEmpty(toStringSafe(payload["last_frame_url"]), toStringSafe(payload["last_frame"]))
-	if len(images) > 1 || len(images) > 0 && (firstFrame != "" || lastFrame != "") {
-		return nil, errors.New("算力萌 H3 的多图会按时间轴变成视频帧，不是独立人物或场景参考；请先合成完整场景并选为首帧，或使用支持独立多图参考的模型")
+	if firstFrame != "" {
+		result["first_frame_url"] = firstFrame
 	}
-	if len(images) == 1 {
-		firstFrame = images[0]
+	if lastFrame != "" {
+		result["last_frame_url"] = lastFrame
 	}
-	result["capability"] = "t2v"
-	if firstFrame != "" || lastFrame != "" {
-		if result["model"] != "zhimeng-h3-local" {
-			return nil, errors.New("当前算力萌模型不支持首尾帧，请选择 zhimeng-h3-local")
+	if result["model"] == "zhimeng-h3-local" {
+		result["capability"] = "t2v"
+		if len(images) > 0 || firstFrame != "" || lastFrame != "" {
+			result["capability"] = "i2v"
 		}
-		result["capability"] = "i2v"
-		if firstFrame != "" {
-			result["first_frame_url"] = firstFrame
-		}
-		if lastFrame != "" {
-			result["last_frame_url"] = lastFrame
-		}
+	} else if capability := strings.TrimSpace(toStringSafe(payload["capability"])); capability != "" {
+		result["capability"] = capability
 	}
 	return json.Marshal(result)
 }

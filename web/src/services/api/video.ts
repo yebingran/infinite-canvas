@@ -116,6 +116,7 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] | VideoReferenceInput = [], onProgress?: VideoProgressHandler, options?: string | VideoTaskCreateOptions): Promise<CreatedVideoGenerationTask> {
+    config = withVideoPromptSettings(config, prompt);
     const model = config.model || config.videoModel;
     validateVideoPromptSettings(config, prompt);
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
@@ -302,6 +303,16 @@ export async function pollVideoGenerationTaskStatus(config: AiConfig, task: Vide
     return syncGeneratedVideo(resolved, config, true);
 }
 
+export function withVideoPromptSettings(config: AiConfig, prompt: string): AiConfig {
+    if (videoChannelProtocol(config, config.model || config.videoModel) !== "comemoe") return config;
+    const opening = prompt.trim().split(/\r?\n/, 1)[0];
+    const ratioMatch = opening.match(/(?<!\d)(\d{1,2})\s*[:：]\s*(\d{1,2})(?!\d)/);
+    const ratio = ratioMatch ? `${ratioMatch[1]}:${ratioMatch[2]}` : "";
+    const supportedRatio = ["16:9", "9:16", "1:1"].includes(ratio) ? ratio : "";
+    const resolution = opening.match(/\b(480|720|1080)p\b/i)?.[1];
+    return supportedRatio || resolution ? { ...config, size: supportedRatio || config.size, vquality: resolution || config.vquality } : config;
+}
+
 function validateVideoPromptSettings(config: AiConfig, prompt: string) {
     const opening = prompt.trim().split(/\r?\n/, 1)[0];
     const ratio = opening.match(/(?<!\d)(\d{1,2})\s*[:：]\s*(\d{1,2})(?!\d)/);
@@ -408,16 +419,16 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     if (videoChannelProtocol(config, model) === "comemoe") {
         if (input.videoReferences.length || input.audioReferences.length) throw new VideoRequestError("算力萌当前接口不支持视频或音频参考");
-        if (input.references.length > 1 || (input.references.length && (input.firstFrame || input.lastFrame))) throw new VideoRequestError("算力萌 H3 会把多张图片按时间轴变成视频帧，不能用作独立的人物和场景参考。请先合成完整场景并选为首帧，或使用支持独立多图参考的模型。");
-        const firstFrame = input.firstFrame || input.references[0];
-        if (model !== "zhimeng-h3-local" && (firstFrame || input.lastFrame)) throw new VideoRequestError("当前算力萌模型不支持首尾帧，请选择 zhimeng-h3-local");
+        const images = await Promise.all(input.references.map(imageToAgnesReference));
+        if (model !== "zhimeng-h3-local" && (images.length || input.firstFrame || input.lastFrame)) throw new VideoRequestError("当前算力萌模型不支持图片参考，请选择 zhimeng-h3-local");
         return {
             model, prompt,
-            capability: firstFrame || input.lastFrame ? "i2v" : "t2v",
+            capability: images.length || input.firstFrame || input.lastFrame ? "i2v" : "t2v",
             duration: Number(config.videoSeconds),
             ratio: normalizeTranslationAspectRatio(config.size),
             resolution: config.vquality.replace(/p$/i, "") === "480" ? "standard" : `${config.vquality.replace(/p$/i, "")}P`,
-            ...(firstFrame ? { first_frame_url: await imageToAgnesReference(firstFrame) } : {}),
+            ...(images.length === 1 ? { image_url: images[0] } : images.length > 1 ? { image_urls: images } : {}),
+            ...(input.firstFrame ? { first_frame_url: await imageToAgnesReference(input.firstFrame) } : {}),
             ...(input.lastFrame ? { last_frame_url: await imageToAgnesReference(input.lastFrame) } : {}),
         };
     }
