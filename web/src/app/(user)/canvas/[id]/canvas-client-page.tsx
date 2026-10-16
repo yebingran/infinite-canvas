@@ -725,7 +725,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 pollingVideoNodeIdsRef.current.set(node.id, controller);
                 void (node.metadata?.workflowRef
                     ? getWorkflowTask(workflowToken, taskId, controller.signal).then((task) => workflowVideoTask(task, workflowToken))
-                    : pollVideoGenerationTaskStatus(generationConfig, canvasVideoTaskFromMetadata(node.metadata), controller.signal))
+                    : pollVideoGenerationTaskStatus(generationConfig, canvasVideoTaskFromMetadata(node.metadata), controller.signal, (task) => {
+                        if (controller.signal.aborted || !canvasVideoTaskCompleted(task) || !isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
+                        rememberNodeTask(node.id, node.metadata?.clientTaskId, task);
+                        setNodes((prev) => applyCanvasVideoTaskUpdate(prev, node.id, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }, node.metadata?.clientTaskId));
+                    }))
                     .then((task) => {
                         if (controller.signal.aborted) return;
                         rememberNodeTask(node.id, node.metadata?.clientTaskId, task);

@@ -117,6 +117,7 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] | VideoReferenceInput = [], onProgress?: VideoProgressHandler, options?: string | VideoTaskCreateOptions): Promise<CreatedVideoGenerationTask> {
     const model = config.model || config.videoModel;
+    validateVideoPromptSettings(config, prompt);
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
     const translation = await findParameterTranslation({...config,model});
     if (translation) return createTranslatedVideoTask({...config,model},translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),normalizeVideoTaskCreateOptions(options),onProgress);
@@ -281,8 +282,13 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
     }
 }
 
-export async function pollVideoGenerationTaskStatus(config: AiConfig, task: VideoResponse, signal?: AbortSignal) {
-    if (task.translationSnapshot) return syncGeneratedVideo(await pollLocalTranslatedVideo(config,task,signal),config,true);
+export async function pollVideoGenerationTaskStatus(config: AiConfig, task: VideoResponse, signal?: AbortSignal, onResolved?: (task: VideoResponse) => void) {
+    if (task.translationSnapshot) {
+        const result = await pollLocalTranslatedVideo(config, task, signal);
+        signal?.throwIfAborted();
+        onResolved?.(result);
+        return syncGeneratedVideo(result, config, true);
+    }
     const model = config.model || config.videoModel;
     const pollId = videoPollId(model, task);
     if (!pollId) throw new VideoRequestError("视频接口没有返回任务 ID", task);
@@ -290,7 +296,20 @@ export async function pollVideoGenerationTaskStatus(config: AiConfig, task: Vide
     const result: VideoResponse = directProvider && !task.parameter_translation
         ? await (await import("@/services/api/direct-ai")).pollDirectVideoTask(config, directProvider, pollId, signal)
         : unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined, signal })).data);
-    return syncGeneratedVideo(result.parameter_translation ? result : await cacheProtectedGeminiVideo(config, model, await cacheProtectedVideo(config, model, result)), config, true);
+    const resolved = result.parameter_translation ? result : await cacheProtectedGeminiVideo(config, model, await cacheProtectedVideo(config, model, result));
+    signal?.throwIfAborted();
+    onResolved?.(resolved);
+    return syncGeneratedVideo(resolved, config, true);
+}
+
+function validateVideoPromptSettings(config: AiConfig, prompt: string) {
+    const opening = prompt.trim().split(/\r?\n/, 1)[0];
+    const ratio = opening.match(/(?<!\d)(\d{1,2})\s*[:：]\s*(\d{1,2})(?!\d)/);
+    const resolution = opening.match(/\b(480|720|1080|2160)p\b/i);
+    const conflicts: string[] = [];
+    if (ratio && `${ratio[1]}:${ratio[2]}` !== normalizeTranslationAspectRatio(config.size)) conflicts.push(`比例：提示词 ${ratio[1]}:${ratio[2]}，设置 ${normalizeTranslationAspectRatio(config.size)}`);
+    if (resolution && resolution[1] !== config.vquality.replace(/p$/i, "")) conflicts.push(`分辨率：提示词 ${resolution[1]}P，设置 ${config.vquality}`);
+    if (conflicts.length) throw new VideoRequestError(`视频参数与提示词不一致（${conflicts.join("；")}），请统一视频设置和提示词后再生成。`);
 }
 
 function videoSyncKey(config: AiConfig, task: VideoResponse) {
@@ -387,6 +406,21 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
 }
 
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    if (videoChannelProtocol(config, model) === "comemoe") {
+        if (input.videoReferences.length || input.audioReferences.length) throw new VideoRequestError("算力萌当前接口不支持视频或音频参考");
+        if (input.references.length > 1 || (input.references.length && (input.firstFrame || input.lastFrame))) throw new VideoRequestError("算力萌 H3 会把多张图片按时间轴变成视频帧，不能用作独立的人物和场景参考。请先合成完整场景并选为首帧，或使用支持独立多图参考的模型。");
+        const firstFrame = input.firstFrame || input.references[0];
+        if (model !== "zhimeng-h3-local" && (firstFrame || input.lastFrame)) throw new VideoRequestError("当前算力萌模型不支持首尾帧，请选择 zhimeng-h3-local");
+        return {
+            model, prompt,
+            capability: firstFrame || input.lastFrame ? "i2v" : "t2v",
+            duration: Number(config.videoSeconds),
+            ratio: normalizeTranslationAspectRatio(config.size),
+            resolution: config.vquality.replace(/p$/i, "") === "480" ? "standard" : `${config.vquality.replace(/p$/i, "")}P`,
+            ...(firstFrame ? { first_frame_url: await imageToAgnesReference(firstFrame) } : {}),
+            ...(input.lastFrame ? { last_frame_url: await imageToAgnesReference(input.lastFrame) } : {}),
+        };
+    }
     if (videoChannelProtocol(config, model) === "autodl") {
         const capabilities = getAutoDLCapabilities(await fetchAutoDLWorkflow(autoDLBaseUrl(config, model), model));
         if (!capabilities) throw new VideoRequestError("当前 AutoDL 工作流尚未适配");

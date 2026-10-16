@@ -62,7 +62,12 @@ export async function downloadRemoteMedia(url: string) {
 
 export async function uploadRemoteMediaToServer(url: string, filename: string): Promise<UploadedFile> {
     const blob = await downloadRemoteMedia(url);
-    return uploadMediaBlobToServer(blob, filename);
+    const metadataUrl = blob.type.startsWith("video/") ? URL.createObjectURL(blob) : undefined;
+    try {
+        return await uploadMediaBlobToServer(blob, filename, metadataUrl);
+    } finally {
+        if (metadataUrl) URL.revokeObjectURL(metadataUrl);
+    }
 }
 
 async function uploadMediaBlobToServer(blob: Blob, filename: string, metadataUrl?: string, tokenOverride?: string): Promise<UploadedFile> {
@@ -246,7 +251,15 @@ export function collectMediaStorageKeys(value: unknown, keys = new Set<string>()
 function readVideoMeta(url: string) {
     return new Promise<{ width: number; height: number }>((resolve) => {
         const video = document.createElement("video");
-        const done = () => resolve({ width: video.videoWidth || 1280, height: video.videoHeight || 720 });
+        const done = () => {
+            clearTimeout(timer);
+            resolve({ width: video.videoWidth || 1280, height: video.videoHeight || 720 });
+            video.onloadedmetadata = video.onerror = null;
+            video.removeAttribute("src");
+            video.load();
+        };
+        const timer = setTimeout(done, 10000);
+        video.preload = "metadata";
         video.onloadedmetadata = done;
         video.onerror = done;
         video.src = url;
