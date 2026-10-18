@@ -16,7 +16,7 @@ import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, sa
 import { clearStorageConfigCache as clearMediaStorageConfigCache } from "@/services/file-storage";
 import { clearStorageConfigCache as clearImageStorageConfigCache } from "@/services/image-storage";
 import { useUserStore } from "@/stores/use-user-store";
-import type { ModelCapabilities } from "@/stores/use-config-store";
+import { useConfigStore, type ModelCapabilities } from "@/stores/use-config-store";
 
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), { ssr: false });
 const WorkflowChannelPane = dynamic(() => import("@/components/workflow/workflow-channel-pane").then((module) => module.WorkflowChannelPane), { ssr: false });
@@ -33,8 +33,15 @@ const jsonEditorTheme = EditorView.theme({
     "&.cm-focused": { outline: "none" },
 });
 
+const defaultAnnouncementItems = [
+    { text: "TokenDance X 百亿 Token 补贴，一键登录即可接入，SD 2 Mini 低至 0.09元/秒", linkText: "查看详情", linkUrl: "https://tokendance.space/" },
+    { text: "无限画布现已支持 RunningHub X ComfyUI 工作流" },
+    { text: "微信交流群现已开放", linkText: "扫码加入", linkUrl: "https://qr.tdeh.uk/ai" },
+];
+
 const emptySettings: AdminSettings = {
     public: {
+        announcement: { enabled: true, items: defaultAnnouncementItems },
         modelChannel: {
             availableModels: [],
             availableWorkflows: [],
@@ -63,6 +70,7 @@ type EditorMode = "visual" | "json";
 
 export default function AdminSettingsPage() {
     const token = useUserStore((state) => state.token);
+    const loadPublicSettings = useConfigStore((state) => state.loadPublicSettings);
     const { message } = App.useApp();
     const [form] = Form.useForm<AdminSettings>();
     const [activeTab, setActiveTab] = useState<SettingsTabKey>("public");
@@ -180,6 +188,7 @@ export default function AdminSettingsPage() {
                 public: JSON.stringify(merged.public, null, 2),
                 private: JSON.stringify(merged.private, null, 2),
             });
+            void loadPublicSettings().catch(() => message.warning("设置已保存，前台公告刷新失败，请刷新页面"));
             message.success("已保存");
         } catch (error) {
             message.error(error instanceof Error ? error.message : "保存失败");
@@ -436,6 +445,46 @@ export default function AdminSettingsPage() {
                         activeMode === "visual" ? (
                             <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false}>
                                 <Row gutter={16}>
+                                    <Col span={24}>
+                                        <Card size="small" title="站点滚动公告" className="!mb-5">
+                                            <Typography.Paragraph type="secondary">公告在前台顶部轮播。留空链接地址时只显示文字；清空所有公告或关闭开关即可隐藏公告栏。</Typography.Paragraph>
+                                            <Form.Item name={["public", "announcement", "enabled"]} label="显示公告" valuePropName="checked">
+                                                <Switch />
+                                            </Form.Item>
+                                            <Form.List name={["public", "announcement", "items"]}>
+                                                {(fields, { add, remove, move }) => (
+                                                    <Flex vertical gap={12}>
+                                                        {fields.map((field, index) => (
+                                                            <Card key={field.key} size="small" title={`公告 ${index + 1}`} extra={
+                                                                <Space>
+                                                                    <Button size="small" disabled={index === 0} onClick={() => move(index, index - 1)}>上移</Button>
+                                                                    <Button size="small" disabled={index === fields.length - 1} onClick={() => move(index, index + 1)}>下移</Button>
+                                                                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)}>删除</Button>
+                                                                </Space>
+                                                            }>
+                                                                <Form.Item name={[field.name, "text"]} label="公告文字">
+                                                                    <Input.TextArea rows={2} placeholder="输入前台显示的公告文字" />
+                                                                </Form.Item>
+                                                                <Row gutter={12}>
+                                                                    <Col xs={24} md={16}>
+                                                                        <Form.Item name={[field.name, "linkUrl"]} label="跳转链接（可选）">
+                                                                            <Input type="url" placeholder="https://example.com" />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                    <Col xs={24} md={8}>
+                                                                        <Form.Item name={[field.name, "linkText"]} label="链接文字（可选）">
+                                                                            <Input placeholder="查看详情" />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                </Row>
+                                                            </Card>
+                                                        ))}
+                                                        <Button icon={<PlusOutlined />} onClick={() => add({ text: "", linkUrl: "", linkText: "" })}>新增公告</Button>
+                                                    </Flex>
+                                                )}
+                                            </Form.List>
+                                        </Card>
+                                    </Col>
                                     <Col span={24}>
                                         <Form.Item name={["public", "modelChannel", "availableModels"]} label="系统可用模型(请先在私有配置里配置渠道)" extra="可选项来自已启用渠道中选择的模型，最终开放哪些模型由这里勾选决定">
                                             <Select mode="multiple" showSearch={{ optionFilterProp: ["label", "value"] }} placeholder="请选择系统可用模型" options={channelModels.map((item) => ({ label: publicModelLabel(item), value: item }))} />
@@ -1103,6 +1152,10 @@ function normalizeSettings(settings: Partial<AdminSettings> = {}): AdminSettings
 function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}): AdminSettings["public"] {
     return {
         ...emptySettings.public,
+        announcement: {
+            enabled: setting.announcement?.enabled !== false,
+            items: setting.announcement?.items ?? defaultAnnouncementItems,
+        },
         modelChannel: {
             ...emptySettings.public.modelChannel,
             ...(setting.modelChannel || {}),

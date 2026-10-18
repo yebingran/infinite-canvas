@@ -124,8 +124,8 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     if (translation) return createTranslatedVideoTask({...config,model},translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),normalizeVideoTaskCreateOptions(options),onProgress);
     const body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references));
     const startedAt = Date.now();
+    const createOptions = normalizeVideoTaskCreateOptions(options);
     try {
-        const createOptions = normalizeVideoTaskCreateOptions(options);
         const accountProxy = usesAccountProxy(config);
         const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
         const directProvider = !accountProxy ? directAIProviderForConfig(config) : null;
@@ -147,6 +147,10 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
         if (typeof task.progress === "number") onProgress?.(task.progress, task);
         return { task, pollId: videoPollId(model, task), startedAt, requestBody: body };
     } catch (error) {
+        if (usesAccountProxy(config) && createOptions.clientTaskId && axios.isAxiosError(error) && error.response?.status === 524) {
+            const task: VideoResponse = { id: createOptions.clientTaskId, task_id: createOptions.clientTaskId, status: "queued", progress: 0 };
+            return { task, pollId: task.id, startedAt, requestBody: body };
+        }
         const { message, detail } = readAxiosError(error, "视频生成失败");
         void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(summarizeVideoRequestBody(body)), stringifyLogPayload(detail), message);
         throw new VideoRequestError(message, detail);

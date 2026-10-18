@@ -714,7 +714,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         if (!projectLoaded) return;
         const pollCanvasTasks = () => {
             nodesRef.current.filter((node) => node.metadata?.status === "stopping" && !node.metadata.errorDetails).forEach((node) => { void handleStopNode(node.id); });
-            const videoTargets = nodesRef.current.filter((node) => node.type === CanvasNodeType.Video && node.metadata?.status === NODE_STATUS_LOADING && !node.metadata.content && canvasVideoTaskId(node.metadata));
+            const videoTargets = nodesRef.current.filter((node) => node.type === CanvasNodeType.Video && !node.metadata?.content && canvasVideoTaskId(node.metadata) && (node.metadata?.status === NODE_STATUS_LOADING || isRecoverableVideoTimeoutNode(node)));
             videoTargets.forEach((node) => {
                 if (pollingVideoNodeIdsRef.current.has(node.id)) return;
                 const taskId = canvasVideoTaskId(node.metadata);
@@ -732,6 +732,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     }))
                     .then((task) => {
                         if (controller.signal.aborted) return;
+                        if (task.id === node.metadata?.clientTaskId && task.task_id === task.id && !task.created_at && Date.now() - (node.metadata?.startedAt || Date.now()) > 15 * 60 * 1000) {
+                            setNodes((prev) => prev.map((item) => item.id === node.id && item.metadata?.clientTaskId === node.metadata?.clientTaskId && item.metadata.status !== NODE_STATUS_SUCCESS ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails: "提交后仍未找到视频任务，请检查 AI 日志并重新生成。" } } : item));
+                            return;
+                        }
                         rememberNodeTask(node.id, node.metadata?.clientTaskId, task);
                         if (!isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
                         setNodes((prev) => applyCanvasVideoTaskUpdate(prev, node.id, task, generationConfig, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }, node.metadata?.clientTaskId));
@@ -5427,7 +5431,7 @@ function getInputSummary(inputs: NodeGenerationInput[]) {
 
 function applyCanvasVideoTaskUpdate(nodes: CanvasNodeData[], nodeId: string, task: VideoResponse, config: AiConfig, startedAt: number, fallbackSize: { width: number; height: number }, clientTaskId?: string) {
     const target = nodes.find((node) => node.id === nodeId);
-    if (!target || target.metadata?.status === "stopped" || (target.metadata?.status === "stopping" && !canvasVideoTaskCompleted(task)) || (clientTaskId && target.metadata?.clientTaskId !== clientTaskId)) return nodes;
+    if (!target || target.metadata?.status === "stopped" || (target.metadata?.status === NODE_STATUS_SUCCESS && !canvasVideoTaskCompleted(task)) || (target.metadata?.status === "stopping" && !canvasVideoTaskCompleted(task)) || (clientTaskId && target.metadata?.clientTaskId !== clientTaskId)) return nodes;
     return nodes.map((node) => {
         if (node.id !== nodeId) return node;
         const progress = typeof task.progress === "number" ? Math.max(0, Math.min(100, task.progress)) : node.metadata?.progress || 0;
@@ -5759,6 +5763,10 @@ function canvasVideoTaskFromMetadata(metadata?: CanvasNodeMetadata): VideoRespon
 
 function canvasVideoTaskId(metadata?: CanvasNodeMetadata) {
     return metadata?.videoTaskVideoId || metadata?.videoTaskId || "";
+}
+
+function isRecoverableVideoTimeoutNode(node: CanvasNodeData) {
+    return node.metadata?.status === NODE_STATUS_ERROR && /\b524\b/.test(node.metadata.errorDetails || "") && Boolean(node.metadata.videoTaskId?.startsWith("client_video_task_"));
 }
 
 function canvasVideoTaskCompleted(task: VideoResponse) {
