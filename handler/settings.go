@@ -15,6 +15,7 @@ type adminChannelActionRequest struct {
 }
 
 func Settings(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	settings, err := service.PublicSettings()
 	if err != nil {
 		FailError(w, err)
