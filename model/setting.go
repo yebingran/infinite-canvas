@@ -135,19 +135,35 @@ type PublicModelChannelInfo struct {
 type PublicSetting struct {
 	ModelChannel PublicModelChannelSetting `json:"modelChannel"`
 	Announcement AnnouncementSetting       `json:"announcement"`
-	Auth         PublicAuthSetting         `json:"auth"`
-	Storage      PublicStorageSetting      `json:"storage"`
+	HomeBanners  HomeBannerSetting          `json:"homeBanners"`
+	Auth         PublicAuthSetting          `json:"auth"`
+	Storage      PublicStorageSetting       `json:"storage"`
 }
 
 type AnnouncementSetting struct {
-	Enabled *bool              `json:"enabled"`
-	Items   []AnnouncementItem `json:"items"`
+	Enabled  *bool              `json:"enabled"`
+	Items    []AnnouncementItem `json:"items"`
+	Revision string             `json:"revision,omitempty"`
 }
 
 type AnnouncementItem struct {
+	Enabled  *bool  `json:"enabled,omitempty"`
 	Text     string `json:"text"`
 	LinkText string `json:"linkText,omitempty"`
 	LinkURL  string `json:"linkUrl,omitempty"`
+}
+
+type HomeBannerSetting struct {
+	Enabled *bool            `json:"enabled"`
+	Items   []HomeBannerItem `json:"items"`
+}
+
+type HomeBannerItem struct {
+	Enabled  *bool  `json:"enabled,omitempty"`
+	ImageURL string `json:"imageUrl"`
+	VideoURL string `json:"videoUrl,omitempty"`
+	LinkURL  string `json:"linkUrl,omitempty"`
+	Alt      string `json:"alt"`
 }
 
 type PublicStorageSetting struct {

@@ -246,7 +246,12 @@ export type AdminPublicSettings = {
     modelChannel: AdminPublicModelChannelSettings;
     announcement: {
         enabled: boolean;
-        items: Array<{ text: string; linkText?: string; linkUrl?: string }>;
+        revision?: string;
+        items: Array<{ enabled?: boolean; text: string; linkText?: string; linkUrl?: string }>;
+    };
+    homeBanners: {
+        enabled: boolean;
+        items: Array<{ enabled?: boolean; imageUrl: string; videoUrl?: string; linkUrl?: string; alt: string }>;
     };
     auth: {
         allowRegister: boolean;

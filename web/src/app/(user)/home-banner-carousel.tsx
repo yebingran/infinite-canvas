@@ -31,7 +31,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
     const carouselRef = useRef<HTMLDivElement>(null);
     const pointerStartRef = useRef<number | null>(null);
     const draggedRef = useRef(false);
-    const visibleBanners = [-1, 0, 1].map((offset) => {
+    const visibleBanners = (banners.length === 1 ? [0] : banners.length === 2 ? [0, 1] : [-1, 0, 1]).map((offset) => {
         const position = activePosition + offset;
         const index =
             ((position % banners.length) + banners.length) % banners.length;
@@ -203,12 +203,12 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                         </button>
                     );
                 })}
-                <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ left: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronLeft className="size-5" />} onClick={() => changeBanner(-1)} aria-label="上一张" />
-                <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ right: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronRight className="size-5" />} onClick={() => changeBanner(1)} aria-label="下一张" />
+                {banners.length > 1 && <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ left: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronLeft className="size-5" />} onClick={() => changeBanner(-1)} aria-label="上一张" />}
+                {banners.length > 1 && <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ right: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronRight className="size-5" />} onClick={() => changeBanner(1)} aria-label="下一张" />}
             </div>
             <div className="mt-1 flex items-center justify-center gap-2" aria-label="Banner 切换">
-                {banners.map((banner, index) => (
-                    <button key={banner.imageUrl} type="button" className={cn("h-1.5 rounded-full transition-all", index === activeIndex ? "w-6 bg-stone-700 dark:bg-stone-200" : "w-2 bg-stone-300 dark:bg-stone-700")} onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张"} />
+                {banners.map((_, index) => (
+                    <button key={index} type="button" className={cn("h-1.5 rounded-full transition-all", index === activeIndex ? "w-6 bg-stone-700 dark:bg-stone-200" : "w-2 bg-stone-300 dark:bg-stone-700")} onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张"} />
                 ))}
             </div>
             <Modal open={Boolean(activeVideoUrl)} footer={null} centered width={960} destroyOnHidden onCancel={() => setActiveVideoUrl("")}>

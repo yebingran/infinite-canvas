@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"reflect"
 	"sort"
 	"slices"
 	"strings"
@@ -51,6 +52,12 @@ func SaveSettings(settings model.Settings) (model.Settings, error) {
 		return model.Settings{}, err
 	}
 	settings = normalizeSettings(settings)
+	previousAnnouncement := normalizeAnnouncementSetting(saved.Public.Announcement)
+	if !reflect.DeepEqual(settings.Public.Announcement.Enabled, previousAnnouncement.Enabled) || !reflect.DeepEqual(settings.Public.Announcement.Items, previousAnnouncement.Items) {
+		settings.Public.Announcement.Revision = fmt.Sprintf("%d", time.Now().UnixNano())
+	} else {
+		settings.Public.Announcement.Revision = previousAnnouncement.Revision
+	}
 	keepPrivateAPIKeys(&settings, normalizeSettings(saved))
 	keepPrivateAuthSecrets(&settings, normalizeSettings(saved))
 	keepPrivateStorageSecrets(&settings, normalizeSettings(saved))
@@ -171,6 +178,7 @@ func DefaultSystemPrompts() model.SystemPromptSetting {
 
 func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []model.ModelChannel) model.PublicSetting {
 	setting.Announcement = normalizeAnnouncementSetting(setting.Announcement)
+	setting.HomeBanners = normalizeHomeBannerSetting(setting.HomeBanners)
 	if setting.ModelChannel.AvailableModels == nil {
 		setting.ModelChannel.AvailableModels = []string{}
 	}
@@ -268,6 +276,49 @@ func normalizeAnnouncementSetting(setting model.AnnouncementSetting) model.Annou
 	}
 	setting.Items = items
 	return setting
+}
+
+func normalizeHomeBannerSetting(setting model.HomeBannerSetting) model.HomeBannerSetting {
+	if setting.Enabled == nil {
+		enabled := true
+		setting.Enabled = &enabled
+	}
+	if setting.Items == nil {
+		setting.Items = []model.HomeBannerItem{
+			{ImageURL: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.6/img/infinite-canvas/metaso.webp", LinkURL: "https://metaso.cn/minimax-h3/?s=tt", Alt: "1"},
+			{ImageURL: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.5/img/infinite-canvas/3ddirectortl.webp", Alt: "2"},
+			{ImageURL: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webp", VideoURL: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webm", Alt: "3"},
+			{ImageURL: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/panorama.webp", Alt: "4"},
+			{ImageURL: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/3ddirector.webp", Alt: "5"},
+		}
+	}
+	items := make([]model.HomeBannerItem, 0, len(setting.Items))
+	for _, item := range setting.Items {
+		item.ImageURL = strings.TrimSpace(item.ImageURL)
+		item.VideoURL = strings.TrimSpace(item.VideoURL)
+		item.LinkURL = strings.TrimSpace(item.LinkURL)
+		item.Alt = strings.TrimSpace(item.Alt)
+		if !validBannerURL(item.ImageURL) {
+			continue
+		}
+		if !validBannerURL(item.VideoURL) {
+			item.VideoURL = ""
+		}
+		if !validBannerURL(item.LinkURL) {
+			item.LinkURL = ""
+		}
+		if item.Alt == "" {
+			item.Alt = fmt.Sprintf("轮播图 %d", len(items)+1)
+		}
+		items = append(items, item)
+	}
+	setting.Items = items
+	return setting
+}
+
+func validBannerURL(value string) bool {
+	parsed, err := url.Parse(value)
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }
 
 func ModelCost(modelName string) (float64, error) {

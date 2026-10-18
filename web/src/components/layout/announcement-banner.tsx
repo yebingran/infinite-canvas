@@ -20,8 +20,8 @@ function safeLinkURL(value: string | undefined) {
 export function AnnouncementBanner() {
     const announcement = useConfigStore((state) => state.publicSettings?.announcement);
     const enabled = announcement?.enabled === true;
-    const items = (announcement?.items || []).filter((item) => item.text?.trim());
-    const signature = JSON.stringify(items);
+    const items = (announcement?.items || []).filter((item) => item.enabled !== false && item.text?.trim());
+    const signature = JSON.stringify([announcement?.revision, items]);
     const [visible, setVisible] = useState(false);
     const [slide, setSlide] = useState({ index: 0, direction: "right" });
     const [paused, setPaused] = useState(false);

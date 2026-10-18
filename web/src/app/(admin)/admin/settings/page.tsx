@@ -42,6 +42,7 @@ const defaultAnnouncementItems = [
 const emptySettings: AdminSettings = {
     public: {
         announcement: { enabled: true, items: defaultAnnouncementItems },
+        homeBanners: { enabled: true, items: [] },
         modelChannel: {
             availableModels: [],
             availableWorkflows: [],
@@ -446,8 +447,54 @@ export default function AdminSettingsPage() {
                             <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false}>
                                 <Row gutter={16}>
                                     <Col span={24}>
+                                        <Card size="small" title="首页大图轮播广告" className="!mb-5">
+                                            <Typography.Paragraph type="secondary">首页搜索框上方的大图轮播。可调整顺序或单独停用；关闭总开关或删除全部图片即可隐藏整组轮播。</Typography.Paragraph>
+                                            <Form.Item name={["public", "homeBanners", "enabled"]} label="显示首页轮播" valuePropName="checked">
+                                                <Switch />
+                                            </Form.Item>
+                                            <Form.List name={["public", "homeBanners", "items"]}>
+                                                {(fields, { add, remove, move }) => (
+                                                    <Flex vertical gap={12}>
+                                                        {fields.map((field, index) => (
+                                                            <Card key={field.key} size="small" title={`广告 ${index + 1}`} extra={
+                                                                <Space>
+                                                                    <Button size="small" disabled={index === 0} onClick={() => move(index, index - 1)}>上移</Button>
+                                                                    <Button size="small" disabled={index === fields.length - 1} onClick={() => move(index, index + 1)}>下移</Button>
+                                                                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)}>删除</Button>
+                                                                </Space>
+                                                            }>
+                                                                <Form.Item name={[field.name, "enabled"]} label="启用这张广告" valuePropName="checked">
+                                                                    <Switch />
+                                                                </Form.Item>
+                                                                <Form.Item name={[field.name, "imageUrl"]} label="封面图片地址">
+                                                                    <Input type="url" placeholder="https://example.com/banner.webp" />
+                                                                </Form.Item>
+                                                                <Row gutter={12}>
+                                                                    <Col xs={24} md={12}>
+                                                                        <Form.Item name={[field.name, "videoUrl"]} label="点击播放视频地址（可选）">
+                                                                            <Input type="url" placeholder="https://example.com/video.mp4" />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                    <Col xs={24} md={12}>
+                                                                        <Form.Item name={[field.name, "linkUrl"]} label="点击跳转链接（可选）">
+                                                                            <Input type="url" placeholder="https://example.com" />
+                                                                        </Form.Item>
+                                                                    </Col>
+                                                                </Row>
+                                                                <Form.Item name={[field.name, "alt"]} label="图片说明">
+                                                                    <Input placeholder="描述这张广告" />
+                                                                </Form.Item>
+                                                            </Card>
+                                                        ))}
+                                                        <Button icon={<PlusOutlined />} onClick={() => add({ enabled: true, imageUrl: "", videoUrl: "", linkUrl: "", alt: "" })}>新增广告</Button>
+                                                    </Flex>
+                                                )}
+                                            </Form.List>
+                                        </Card>
+                                    </Col>
+                                    <Col span={24}>
                                         <Card size="small" title="站点滚动公告" className="!mb-5">
-                                            <Typography.Paragraph type="secondary">公告在前台顶部轮播。留空链接地址时只显示文字；清空所有公告或关闭开关即可隐藏公告栏。</Typography.Paragraph>
+                                            <Typography.Paragraph type="secondary">导航栏上方的文字公告。可调整顺序或单独停用；清空所有公告或关闭总开关即可隐藏公告栏。</Typography.Paragraph>
                                             <Form.Item name={["public", "announcement", "enabled"]} label="显示公告" valuePropName="checked">
                                                 <Switch />
                                             </Form.Item>
@@ -462,6 +509,9 @@ export default function AdminSettingsPage() {
                                                                     <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)}>删除</Button>
                                                                 </Space>
                                                             }>
+                                                                <Form.Item name={[field.name, "enabled"]} label="启用这条公告" valuePropName="checked">
+                                                                    <Switch />
+                                                                </Form.Item>
                                                                 <Form.Item name={[field.name, "text"]} label="公告文字">
                                                                     <Input.TextArea rows={2} placeholder="输入前台显示的公告文字" />
                                                                 </Form.Item>
@@ -479,7 +529,7 @@ export default function AdminSettingsPage() {
                                                                 </Row>
                                                             </Card>
                                                         ))}
-                                                        <Button icon={<PlusOutlined />} onClick={() => add({ text: "", linkUrl: "", linkText: "" })}>新增公告</Button>
+                                                        <Button icon={<PlusOutlined />} onClick={() => add({ enabled: true, text: "", linkUrl: "", linkText: "" })}>新增公告</Button>
                                                     </Flex>
                                                 )}
                                             </Form.List>
@@ -1154,7 +1204,11 @@ function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}):
         ...emptySettings.public,
         announcement: {
             enabled: setting.announcement?.enabled !== false,
-            items: setting.announcement?.items ?? defaultAnnouncementItems,
+            items: (setting.announcement?.items ?? defaultAnnouncementItems).map((item) => ({ ...item, enabled: item.enabled !== false })),
+        },
+        homeBanners: {
+            enabled: setting.homeBanners?.enabled !== false,
+            items: (setting.homeBanners?.items ?? []).map((item) => ({ ...item, enabled: item.enabled !== false })),
         },
         modelChannel: {
             ...emptySettings.public.modelChannel,
@@ -1345,6 +1399,14 @@ function parseTabJson(tab: SettingsTabKey, value: string): AdminSettings[Setting
     }
 }
 
+function isHttpUrl(value: string) {
+    try {
+        return ["http:", "https:"].includes(new URL(value).protocol);
+    } catch {
+        return false;
+    }
+}
+
 async function collectSettings(form: any, editorMode: Record<SettingsTabKey, EditorMode>, jsonText: Record<SettingsTabKey, string>, message: { error: (value: string) => void }) {
     const values = normalizeSettings(form.getFieldsValue(true) as AdminSettings);
     if (editorMode.public === "json") {
@@ -1362,6 +1424,11 @@ async function collectSettings(form: any, editorMode: Record<SettingsTabKey, Edi
             return null;
         }
         values.private = privateSetting;
+    }
+    const invalidBanner = values.public.homeBanners.items.findIndex(({ imageUrl, videoUrl, linkUrl }) => !isHttpUrl(imageUrl) || Boolean(videoUrl && !isHttpUrl(videoUrl)) || Boolean(linkUrl && !isHttpUrl(linkUrl)));
+    if (invalidBanner >= 0) {
+        message.error(`首页轮播广告 ${invalidBanner + 1} 的地址无效，请填写完整的 HTTP/HTTPS 地址`);
+        return null;
     }
     values.public.modelChannel.availableModels = filterModels(values.public.modelChannel.availableModels, collectChannelModels(values.private.channels));
     values.public.modelChannel.availableWorkflows = filterModels(values.public.modelChannel.availableWorkflows, collectChannelWorkflows(values.private.channels).map((item) => item.value));
