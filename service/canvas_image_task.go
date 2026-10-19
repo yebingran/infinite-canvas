@@ -2,6 +2,7 @@ package service
 
 import (
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
@@ -69,7 +70,12 @@ func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageT
 }
 
 func GetUserCanvasImageTask(userID string, id string) (model.CanvasImageTask, bool, error) {
-	return repository.GetUserCanvasImageTask(strings.TrimSpace(userID), strings.TrimSpace(id))
+	task, found, err := repository.GetUserCanvasImageTask(strings.TrimSpace(userID), strings.TrimSpace(id))
+	if err != nil || !found {
+		return task, found, err
+	}
+	task, err = reconcileCanvasImageTask(task)
+	return task, true, err
 }
 
 func ListUserCanvasImageTasks(userID string, sources []string, limit int) ([]map[string]any, error) {
@@ -79,6 +85,10 @@ func ListUserCanvasImageTasks(userID string, sources []string, limit int) ([]map
 	}
 	result := make([]map[string]any, 0, len(tasks))
 	for _, task := range tasks {
+		task, err = reconcileCanvasImageTask(task)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, CanvasImageTaskResponse(task))
 	}
 	return result, nil
@@ -91,9 +101,50 @@ func BatchUserCanvasImageTasks(userID string, ids []string) ([]map[string]any, e
 	}
 	result := make([]map[string]any, 0, len(tasks))
 	for _, task := range tasks {
+		task, err = reconcileCanvasImageTask(task)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, CanvasImageTaskResponse(task))
 	}
 	return result, nil
+}
+
+const canvasImageTaskStaleAfter = 2 * time.Minute
+
+func reconcileCanvasImageTask(task model.CanvasImageTask) (model.CanvasImageTask, error) {
+	switch strings.ToLower(strings.TrimSpace(task.Status)) {
+	case "queued", "processing", "running", "in_progress":
+	default:
+		return task, nil
+	}
+	if CanvasTaskIsRunning("image", task.UserID, task.ID) {
+		return task, nil
+	}
+	lastActivity := strings.TrimSpace(task.UpdatedAt)
+	if lastActivity == "" {
+		lastActivity = strings.TrimSpace(task.StartedAt)
+	}
+	updatedAt, err := time.Parse(time.RFC3339Nano, lastActivity)
+	if err != nil || time.Since(updatedAt) < canvasImageTaskStaleAfter {
+		return task, nil
+	}
+	completedAt := now()
+	message := "图片任务已中断，请重新生成。"
+	detail := "服务端已不再运行此任务，可能由服务重启或任务进程中断导致。"
+	updated, err := repository.FailOrphanedCanvasImageTask(task.UserID, task.ID, completedAt, message, detail)
+	if err != nil {
+		return task, err
+	}
+	if updated {
+		task.Status, task.CompletedAt, task.UpdatedAt, task.Error, task.ErrorDetail = "failed", completedAt, completedAt, message, detail
+		return task, nil
+	}
+	latest, found, err := repository.GetUserCanvasImageTask(task.UserID, task.ID)
+	if err != nil || !found {
+		return task, err
+	}
+	return latest, nil
 }
 
 func DeleteUserCanvasImageTask(userID string, id string) error {

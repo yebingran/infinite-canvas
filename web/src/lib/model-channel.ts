@@ -1,5 +1,6 @@
 export const modelChannelProtocols = [
     { value: "openai", label: "OpenAI", baseUrl: "https://api.openai.com" },
+    { value: "newapi", label: "New API（OpenAI 兼容）", baseUrl: "https://ai.yunsuguan.com/v1" },
     { value: "comemoe", label: "算力萌视频", baseUrl: "https://www.comemoe.com/v1" },
     { value: "gemini", label: "Gemini", baseUrl: "https://generativelanguage.googleapis.com" },
     { value: "grok2api", label: "Grok2API", baseUrl: "" },

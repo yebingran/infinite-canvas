@@ -720,7 +720,7 @@ func collectImageCandidates(value any, depth int, includeChatImages bool) []stri
 		}
 		return result
 	case map[string]any:
-		keys := []string{"url", "b64_json", "partial_image_b64", "image_url", "image", "image_data", "base64", "inlineData", "parts", "content", "candidates", "result", "response", "data", "output"}
+		keys := []string{"url", "uri", "fileUri", "file_uri", "b64_json", "partial_image_b64", "image_url", "imageUrl", "image", "image_data", "base64", "inlineData", "inline_data", "fileData", "file_data", "parts", "content", "candidates", "result", "response", "data", "output"}
 		if includeChatImages {
 			keys = append(keys, "choices", "message", "images")
 		}

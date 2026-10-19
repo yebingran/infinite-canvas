@@ -126,7 +126,7 @@ description: settings 表中 public 和 private 配置结构说明
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `protocol` | string | 协议，支持 OpenAI、算力萌视频、Gemini、Grok2API、MiniMax、APIMart、KIE、MiMo |
+| `protocol` | string | 协议，支持 OpenAI、New API（OpenAI 兼容）、算力萌视频、Gemini、Grok2API、MiniMax、APIMart、KIE、MiMo |
 | `name` | string | 渠道名称 |
 | `baseUrl` | string | 渠道接口地址 |
 | `apiKey` | string | 渠道密钥 |

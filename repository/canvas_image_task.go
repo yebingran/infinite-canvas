@@ -74,6 +74,17 @@ func BatchUserCanvasImageTasks(userID string, ids []string) ([]model.CanvasImage
 	return tasks, err
 }
 
+func FailOrphanedCanvasImageTask(userID string, id string, completedAt string, message string, detail string) (bool, error) {
+	db, err := DB()
+	if err != nil {
+		return false, err
+	}
+	result := db.Model(&model.CanvasImageTask{}).
+		Where("user_id = ? AND id = ? AND status IN ?", userID, id, []string{"queued", "processing", "running", "in_progress"}).
+		Updates(map[string]any{"status": "failed", "completed_at": completedAt, "updated_at": completedAt, "error": message, "error_detail": detail})
+	return result.RowsAffected > 0, result.Error
+}
+
 func DeleteUserCanvasImageTask(userID string, id string) error {
 	db, err := DB()
 	if err != nil {

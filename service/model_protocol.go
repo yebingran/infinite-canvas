@@ -10,6 +10,7 @@ import (
 
 const (
 	ModelChannelProtocolOpenAI     = "openai"
+	ModelChannelProtocolNewAPI     = "newapi"
 	ModelChannelProtocolGrok2API   = "grok2api"
 	ModelChannelProtocolAPIMart    = "apimart"
 	ModelChannelProtocolKIE        = "kie"
@@ -32,7 +33,7 @@ type modelProtocolRule struct {
 }
 
 var modelProtocolRegistry map[string]modelProtocolAdapter
-var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocolAutoDL, ModelChannelProtocolArk, ModelChannelProtocolTokenDance, ModelChannelProtocolComemoe}
+var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolNewAPI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocolAutoDL, ModelChannelProtocolArk, ModelChannelProtocolTokenDance, ModelChannelProtocolComemoe}
 
 func init() {
 	compatible := modelProtocolAdapter{
@@ -43,7 +44,7 @@ func init() {
 		models:    fetchOpenAIAdminChannelModels,
 		testModel: testOpenAIChannelModel,
 	}
-	modelProtocolRegistry = make(map[string]modelProtocolAdapter, 11)
+	modelProtocolRegistry = make(map[string]modelProtocolAdapter, len(modelProtocolIDs))
 	for _, id := range modelProtocolIDs {
 		modelProtocolRegistry[id] = compatible
 	}
